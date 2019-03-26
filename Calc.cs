@@ -83,6 +83,9 @@ public class Evaluator
                 }
             }
         }
+
+        public override string ToString() =>
+            $"#{this.Tokens.Count} | {this.CurrentToken} | {(this.PossiblePendingOperator == Char.MinValue ? "" : "P" + this.PossiblePendingOperator.ToString())}";
     }
 
     private static List<Token> Tokenize(string expression)
@@ -143,6 +146,12 @@ public class Evaluator
                         tokenList
                     )
                 );
+            } else if (parsingContext.LastToken is ValueToken vt)
+            {
+                parsingContext.ReplaceToken(
+                    parsingContext.LastToken,
+                    ValueToken.Create(-1 * vt.Value, vt.Position)
+                );
             }
             else
             {
@@ -176,6 +185,7 @@ public class Evaluator
             // Group end
             if (ch == '(')
             {
+                CompleteMinusExpression(false);
                 CompleteUnfinishedToken();
 
                 ParsingContext groupContext = parsingContext;
@@ -191,6 +201,8 @@ public class Evaluator
             if (ch == '-')
             {
                 // Otherwise it is probably part of a number, so just prepend it
+                CompleteNumber();
+
                 parsingContext.PossiblePendingOperator = ch;
                 continue;
             }
@@ -362,6 +374,11 @@ public class Evaluator
         }
 
         public override string ToString() => this.Value.ToString(CultureInfo.InvariantCulture);
+
+        public static Token Create(double value, int pos)
+        {
+            return new ValueToken(value, pos);
+        }
     }
 
     public class OperatorToken : Token, IComparable<OperatorToken>
