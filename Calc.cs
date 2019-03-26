@@ -176,6 +176,7 @@ public class Evaluator
             if (ch == ')')
             {
                 CompleteNumber();
+                CompleteMinusExpression(true);
 
                 parsingContextStack.Push(parsingContext);
                 parsingContext = new ParsingContext();
