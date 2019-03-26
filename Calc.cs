@@ -48,30 +48,30 @@ public class Evaluator
 
         bool LastTokenIsOperatorToken() => tokens.Count == 0 || tokens[tokens.Count - 1] is OperatorToken;
 
-        int position = 0;
-        foreach (char ch in expression)
+        int index;
+        for (index = expression.Length - 1; index >= 0; index--)
         {
+            char ch = expression[index];
             if (Char.IsDigit(ch) || ch == '.' || ch == '-' && LastTokenIsOperatorToken() && currentToken.Length == 0)
             {
                 currentToken.Append(ch);
             }
             else if (Char.IsWhiteSpace(ch))
             {
-                position++;
-                continue;
+                // Ignore whitespace - not significant
             }
             else
             {
-                if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), position));
+                if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), index));
                 currentToken.Clear();
 
-                tokens.Add(OperatorToken.CreateFromString(ch.ToString(), position));
+                tokens.Add(OperatorToken.CreateFromString(ch.ToString(), index));
             }
-
-            position++;
         }
 
-        if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), position));
+        if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), index));
+
+        tokens.Reverse();
 
         return tokens;
     }
