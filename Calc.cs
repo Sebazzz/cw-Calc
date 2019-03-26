@@ -202,6 +202,7 @@ public class Evaluator
             {
                 // Otherwise it is probably part of a number, so just prepend it
                 CompleteNumber();
+                if (parsingContext.PossiblePendingOperator == ch) CompleteMinusExpression(false);
 
                 parsingContext.PossiblePendingOperator = ch;
                 continue;

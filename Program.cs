@@ -6,8 +6,8 @@ namespace Calc
     {
         static void Main(string[] args)
         {
-            string exp = "(1 - 2) + -(-(-(-4)))";
-            double expectedResult = (1 - 2) + -(-(-(-4)));
+            string exp = "1 - 1";
+            double expectedResult = 1 - 1;
 
             double result = new Evaluator().Evaluate(exp);
 
