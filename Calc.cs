@@ -41,40 +41,181 @@ public class Evaluator
         return result;
     }
 
+    private sealed class ParsingContext
+    {
+        public List<Token> Tokens { get; } = new List<Token>();
+        public StringBuilder CurrentToken { get; } = new StringBuilder();
+        public char PossiblePendingOperator { get; set; }
+
+        public void AppendToPartiallyCompletedToken(char value)
+        {
+            this.CurrentToken.Insert(0, value);
+        }
+
+        public void AddToken(Token token)
+        {
+            // We parse RTL, so insert at start
+            if (token is PartialCompletedExpression g && g.Tokens.Count == 1)
+            {
+                token = g.Tokens.First();
+            }
+
+            this.Tokens.Insert(0, token);
+        }
+
+        public Token LastToken => this.Tokens.Count == 0 ? null : this.Tokens[0];
+
+        public void ReplaceToken(Token token, Token replacement)
+        {
+            this.Tokens[this.Tokens.IndexOf(token)] = replacement;
+        }
+
+        public void ReduceRoot()
+        {
+            if (this.Tokens.Count == 1)
+            {
+                Token token = this.LastToken;
+
+                if (token is PartialCompletedExpression g)
+                {
+                    this.Tokens.Clear();
+                    this.Tokens.AddRange(g.Tokens);
+                }
+            }
+        }
+    }
+
     private static List<Token> Tokenize(string expression)
     {
-        List<Token> tokens = new List<Token>();
-        StringBuilder currentToken = new StringBuilder();
-
-        bool LastTokenIsOperatorToken() => tokens.Count == 0 || tokens[tokens.Count - 1] is OperatorToken;
-
+        Stack<ParsingContext> parsingContextStack = new Stack<ParsingContext>();
+        ParsingContext parsingContext = new ParsingContext();
         int index;
-        for (index = expression.Length - 1; index >= 0; index--)
-        {
-            char ch = expression[index];
-            if (Char.IsDigit(ch) || ch == '.' || ch == '-' && LastTokenIsOperatorToken() && currentToken.Length == 0)
-            {
-                currentToken.Append(ch);
-            }
-            else if (Char.IsWhiteSpace(ch))
-            {
-                // Ignore whitespace - not significant
-            }
-            else
-            {
-                if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), index));
-                currentToken.Clear();
 
-                tokens.Add(OperatorToken.CreateFromString(ch.ToString(), index));
+        void CompleteUnfinishedToken()
+        {
+            if (parsingContext.CurrentToken.Length > 0)
+            {
+                parsingContext.AddToken(ValueToken.CreateFromString(parsingContext.CurrentToken.ToString(), index));
             }
         }
 
-        if (currentToken.Length > 0) tokens.Add(ValueToken.CreateFromString(currentToken.ToString(), index));
+        void CompleteNumber()
+        {
+            StringBuilder currentToken = parsingContext.CurrentToken;
 
-        tokens.Reverse();
+            if (currentToken.Length > 0) {
+                parsingContext.AddToken(ValueToken.CreateFromString(currentToken.ToString(), index));
+            }
 
-        return tokens;
+            currentToken.Clear();
+        }
+
+        void CompleteMinusExpression(bool isOperator)
+        {
+            if (parsingContext.PossiblePendingOperator != '-')
+            {
+                return;
+            }
+
+            if (isOperator)
+            {
+                parsingContext.AddToken(
+                    OperatorToken.CreateFromString("-", index + 1)
+                );
+
+                parsingContext.PossiblePendingOperator = Char.MinValue;
+                return;
+            }
+
+            if (parsingContext.LastToken is PartialCompletedExpression g)
+            {
+                List<Token> tokenList = new List<Token>
+                {
+                    ValueToken.CreateFromString("-1", index), 
+                    OperatorToken.CreateFromString("*", index), 
+                    g
+                };
+
+                // Last is a group, and "-(1 * 3)" is actually "-1 * (1 * 3)"
+                parsingContext.ReplaceToken(
+                    parsingContext.LastToken,
+                    PartialCompletedExpression.Create(
+                        tokenList
+                    )
+                );
+            }
+            else
+            {
+                parsingContext.AppendToPartiallyCompletedToken(parsingContext.PossiblePendingOperator);
+            }
+
+            parsingContext.PossiblePendingOperator = Char.MinValue;
+        }
+
+        // Parse token from right to left
+        for (index = expression.Length - 1; index >= 0; index--)
+        {
+            char ch = expression[index];
+
+            // Whitespace does not matter
+            if (Char.IsWhiteSpace(ch))
+            {
+                continue;
+            }
+
+            // Group take precedence
+            if (ch == ')')
+            {
+                CompleteNumber();
+
+                parsingContextStack.Push(parsingContext);
+                parsingContext = new ParsingContext();
+                continue;
+            }
+
+            // Group end
+            if (ch == '(')
+            {
+                CompleteUnfinishedToken();
+
+                ParsingContext groupContext = parsingContext;
+                parsingContext = parsingContextStack.Pop();
+
+                parsingContext.AddToken(
+                    PartialCompletedExpression.Create(groupContext.Tokens)
+                );
+
+                continue;
+            }
+
+            if (ch == '-')
+            {
+                // Otherwise it is probably part of a number, so just prepend it
+                parsingContext.PossiblePendingOperator = ch;
+                continue;
+            }
+
+            if (Char.IsDigit(ch) || ch == '.')
+            {
+                CompleteMinusExpression(true);
+
+                parsingContext.AppendToPartiallyCompletedToken(ch);
+            }
+            else
+            {
+                CompleteMinusExpression(false);
+                CompleteNumber();
+
+                parsingContext.AddToken(OperatorToken.CreateFromString(ch.ToString(), index));
+            }
+        }
+
+        CompleteUnfinishedToken();
+
+        parsingContext.ReduceRoot();
+        return parsingContext.Tokens;
     }
+
 
     public class Expression
     {

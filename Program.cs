@@ -6,8 +6,8 @@ namespace Calc
     {
         static void Main(string[] args)
         {
-            string exp = "12* 123/-(-5 + 2)";
-            double expectedResult = 12d* 123d/-(-5d + 2d);
+            string exp = "((80 - (19)))";
+            double expectedResult = ((80 - (19)));
 
             double result = new Evaluator().Evaluate(exp);
 
