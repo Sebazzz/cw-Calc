@@ -76,10 +76,18 @@ public class Evaluator
             {
                 Token token = this.LastToken;
 
+                // Delete naked groups
                 if (token is PartialCompletedExpression g)
                 {
                     this.Tokens.Clear();
                     this.Tokens.AddRange(g.Tokens);
+                }
+
+                // Artificially insert a bogus operator for values
+                if (token is ValueToken)
+                {
+                    this.AddToken(OperatorToken.CreateFromString("*", -1));
+                    this.AddToken(ValueToken.Create(1, -1));
                 }
             }
         }
@@ -93,14 +101,6 @@ public class Evaluator
         Stack<ParsingContext> parsingContextStack = new Stack<ParsingContext>();
         ParsingContext parsingContext = new ParsingContext();
         int index;
-
-        void CompleteUnfinishedToken()
-        {
-            if (parsingContext.CurrentToken.Length > 0)
-            {
-                parsingContext.AddToken(ValueToken.CreateFromString(parsingContext.CurrentToken.ToString(), index));
-            }
-        }
 
         void CompleteNumber()
         {
@@ -187,7 +187,7 @@ public class Evaluator
             if (ch == '(')
             {
                 CompleteMinusExpression(false);
-                CompleteUnfinishedToken();
+                CompleteNumber();
 
                 ParsingContext groupContext = parsingContext;
                 parsingContext = parsingContextStack.Pop();
@@ -224,7 +224,8 @@ public class Evaluator
             }
         }
 
-        CompleteUnfinishedToken();
+        CompleteNumber();
+        CompleteMinusExpression(false);
 
         parsingContext.ReduceRoot();
         return parsingContext.Tokens;
